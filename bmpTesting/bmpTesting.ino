@@ -4,7 +4,7 @@
 #include "i2c_BMP280.h"
 BMP280 bmp280;
 
-void   setup()
+void setup()
 {
     Serial.begin(115200);
 
