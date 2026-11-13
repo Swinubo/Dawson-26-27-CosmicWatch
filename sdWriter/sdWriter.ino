@@ -28,6 +28,8 @@ struct BMPValues {
 float meters;
 bool executedBaseline = false;
 float baseline = 0;
+float totalMeters = 0;
+int totalMetersCount = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -44,7 +46,7 @@ void setup() {
   }
 
   Serial.println("SD card initialized!");
-
+  /*
   // Open data.txt for writing
   dataFile = SD.open("data.txt", FILE_WRITE);
 
@@ -80,15 +82,49 @@ void setup() {
         dataFile.println("OFF");
       }
     }
+  
   }
 
   dataFile.close();
-
+*/
   Serial.println("Recording finished!");
 }
 
 void loop() {
   BMPValues vals = getVals();
+
+  // Open data.txt for writing
+  dataFile = SD.open("data.txt", FILE_WRITE);
+
+  if (!dataFile) {
+    Serial.println("Failed to open data.txt!");
+    return;
+  }
+
+  dataFile.print("Seconds: ");
+  dataFile.print(currentTime / 1000.0, 2);
+
+  dataFile.print(", Altitude: ");
+  dataFile.print(vals.meters);
+
+  dataFile.print(", Pressure: ");
+  dataFile.print(vals.pascals/1000.0 , 2);
+
+    dataFile.print(", Temperature: ");
+  dataFile.println(vals.temperature);
+
+
+  int switchState = digitalRead(switchPin);
+  if (switchState == LOW) {
+    dataFile.println("ON");
+  } else {
+    dataFile.println("OFF");
+  }
+    }
+  
+  }
+
+  dataFile.close();
 
   Serial.println(vals.meters);
 }
@@ -133,14 +169,20 @@ BMPValues getVals() {
 
     bmp280.getAltitude(meters);
 
-    if (millis() < 7000 && !executedBaseline) {
+    if (millis() > 3000) {
+        totalMeters += meters;
+        totalMetersCount += 1;
 
-        baseline = meters;
-        executedBaseline = true;
+        if(totalMetersCount == 10 && !executedBaseline)
+        {
+            baseline = totalMeters/totalMetersCount;
+            executedBaseline = true;
 
-        Serial.print("Baseline: ");
-        Serial.println(baseline);
+            Serial.print("Baseline: ");
+            Serial.println(baseline);
+        }
     }
+
     Serial.print("Baseline: ");
     Serial.println(baseline);
 
@@ -148,10 +190,7 @@ BMPValues getVals() {
 
     meters -= baseline;
 
-    if (meters < 0)
-    {
-      meters = 0;
-    } 
+    delay(100);
 
     return {meters, pascal, temperature};
 }
