@@ -51,19 +51,42 @@ void setup() {
         Serial.println("SD card initialization failed!");
         return;
     }
+    SD.remove("RAW.txt");
+    SD.remove("INT.txt");
 
     BMPValues vals = getVals();
 
     initAltitude = vals.meters;
     initPascal = vals.pascal;
     initTemp = vals.temperature;
+
+    while (millis() < 3000) {
+      BMPValues vals = getVals();
+    }
+
+    bool done = false;
+    while (!executedBaseline){
+      totalMeters += meters;
+      totalMetersCount += 1;
+      BMPValues vals = getVals();
+
+      if (totalMetersCount == 10) {
+          baseline = totalMeters / totalMetersCount;
+          executedBaseline = true;
+      }
+    }
+
+
+  Serial.print("Baseline: ");
+  Serial.println(baseline);
+
 }
 
 void loop() {
     BMPValues vals = getVals();
 
     // Open data files for writing
-    dataRaw = SD.open("dataRaw.txt", FILE_WRITE);
+    dataRaw = SD.open("RAW.txt", FILE_WRITE);
 
     if (!dataRaw) {
         Serial.println("Failed to open dataRaw.txt!");
@@ -96,7 +119,7 @@ void loop() {
     }
     else {
 
-        dataInterpreted = SD.open("dataIntr.txt", FILE_WRITE);
+        dataInterpreted = SD.open("INT.txt", FILE_WRITE);
 
         if (!dataInterpreted) {
             Serial.println("Failed to open dataInterpreted.txt!");
@@ -104,7 +127,7 @@ void loop() {
         }
 
         dataInterpreted.print("Seconds: ");
-        dataInterpreted.print(currentTime);
+        dataInterpreted.print(currentTime/1000.0, 2);
         dataInterpreted.print("-");
 
         dataInterpreted.print(currentTime + timeInterval);
@@ -155,22 +178,6 @@ BMPValues getVals() {
     bmp280.getPressure(pascal);
 
     bmp280.getAltitude(meters);
-
-    if (millis() > 3000) {
-        totalMeters += meters;
-        totalMetersCount += 1;
-
-        if (totalMetersCount == 10 && !executedBaseline) {
-            baseline = totalMeters / totalMetersCount;
-            executedBaseline = true;
-
-            Serial.print("Baseline: ");
-            Serial.println(baseline);
-        }
-    }
-
-    Serial.print("Baseline: ");
-    Serial.println(baseline);
 
     bmp280.triggerMeasurement();
 
