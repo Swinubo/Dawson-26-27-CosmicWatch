@@ -11,18 +11,23 @@ BMP280 bmp280;
 const int switchPin = 2;
 const int chipSelect = 10;
 
-File dataFile;
+File dataRaw;
+File dataInterpreted;
 
 unsigned long startTime;
 unsigned long previousTime = 0;
 
-const unsigned long interval = 50;   // 0.05 seconds
-const unsigned long duration = 5000; // 5 seconds
+float initAltitude = 0;
+float initPascal = 0;
+float initTemp = 0;
+
+int signalCount = 0;
 
 struct BMPValues {
     float meters;
     float pascal;
     float temperature;
+    bool signal;
 };
 
 float meters;
@@ -30,131 +35,113 @@ bool executedBaseline = false;
 float baseline = 0;
 float totalMeters = 0;
 int totalMetersCount = 0;
+unsigned long timeInterval = 50;
+float currentTime = 0;
 
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
 
-  initBMP();
+    initBMP();
 
-  pinMode(switchPin, INPUT_PULLUP);
+    pinMode(switchPin, INPUT_PULLUP);
 
-  Serial.println("Initializing SD card...");
+    Serial.println("Initializing SD card...");
 
-  if (!SD.begin(chipSelect)) {
-    Serial.println("SD card initialization failed!");
-    return;
-  }
-
-  Serial.println("SD card initialized!");
-  /*
-  // Open data.txt for writing
-  dataFile = SD.open("data.txt", FILE_WRITE);
-
-  if (!dataFile) {
-    Serial.println("Failed to open data.txt!");
-    return;
-  }
-
-  Serial.println("Recording started!");
-
-  startTime = millis();
-
-  // Record switch state every 0.05 seconds
-  while (millis() - startTime < duration) {
-
-    unsigned long currentTime = millis() - startTime;
-
-    if (currentTime - previousTime >= interval) {
-
-      previousTime += interval;
-
-      dataFile.print(currentTime / 1000.0, 2);
-      dataFile.print(" seconds: ");
-
-      int switchState = digitalRead(switchPin);
-
-      dataFile.print(currentTime / 1000.0, 2);
-      dataFile.print(" seconds: ");
-
-      if (switchState == LOW) {
-        dataFile.println("ON");
-      } else {
-        dataFile.println("OFF");
-      }
+    if (!SD.begin(chipSelect)) {
+        Serial.println("SD card initialization failed!");
+        return;
     }
-  
-  }
 
-  dataFile.close();
-*/
-  Serial.println("Recording finished!");
+    BMPValues vals = getVals();
+
+    initAltitude = vals.meters;
+    initPascal = vals.pascal;
+    initTemp = vals.temperature;
 }
 
 void loop() {
-  BMPValues vals = getVals();
+    BMPValues vals = getVals();
 
-  // Open data.txt for writing
-  dataFile = SD.open("data.txt", FILE_WRITE);
+    // Open data files for writing
+    dataRaw = SD.open("dataRaw.txt", FILE_WRITE);
 
-  if (!dataFile) {
-    Serial.println("Failed to open data.txt!");
-    return;
-  }
-
-  dataFile.print("Seconds: ");
-  dataFile.print(currentTime / 1000.0, 2);
-
-  dataFile.print(", Altitude: ");
-  dataFile.print(vals.meters);
-
-  dataFile.print(", Pressure: ");
-  dataFile.print(vals.pascals/1000.0 , 2);
-
-    dataFile.print(", Temperature: ");
-  dataFile.println(vals.temperature);
-
-
-  int switchState = digitalRead(switchPin);
-  if (switchState == LOW) {
-    dataFile.println("ON");
-  } else {
-    dataFile.println("OFF");
-  }
+    if (!dataRaw) {
+        Serial.println("Failed to open dataRaw.txt!");
+        return;
     }
-  
-  }
 
-  dataFile.close();
+    dataRaw.print("Seconds: ");
+    dataRaw.print(currentTime / 1000.0, 2);
 
-  Serial.println(vals.meters);
+    dataRaw.print(", Altitude: ");
+    dataRaw.print(vals.meters);
+
+    dataRaw.print(", Pressure: ");
+    dataRaw.print(vals.pascal / 1000.0, 2);
+
+    dataRaw.print(", Temperature: ");
+    dataRaw.print(vals.temperature);
+
+    dataRaw.print(", Signal: ");
+    dataRaw.println(vals.signal);
+
+    dataRaw.close();
+
+    if (currentTime + timeInterval > millis()) {
+
+        if (vals.signal) {
+            signalCount += 1;
+        }
+
+    }
+    else {
+
+        dataInterpreted = SD.open("dataIntr.txt", FILE_WRITE);
+
+        if (!dataInterpreted) {
+            Serial.println("Failed to open dataInterpreted.txt!");
+            return;
+        }
+
+        dataInterpreted.print("Seconds: ");
+        dataInterpreted.print(currentTime);
+        dataInterpreted.print("-");
+
+        dataInterpreted.print(currentTime + timeInterval);
+
+        dataInterpreted.print(", Altitude: ");
+        dataInterpreted.print((initAltitude + vals.meters) / 2, 2);
+
+        dataInterpreted.print(", Pressure: ");
+        dataInterpreted.print(((initPascal + vals.pascal) / 2) / 1000.0, 2);
+
+        dataInterpreted.print(", Temperature: ");
+        dataInterpreted.print((initTemp + vals.temperature) / 2, 2);
+
+        dataInterpreted.print(", Signal count: ");
+        dataInterpreted.println(signalCount);
+
+        currentTime += timeInterval;
+        signalCount = 0;
+
+        initAltitude = vals.meters;
+        initPascal = vals.pascal;
+        initTemp = vals.temperature;
+
+        dataInterpreted.close();
+    }
 }
 
-void initBMP(){ //init serial before running ts
-  
-
+void initBMP() {
     Serial.print("Probe BMP280: ");
-    if (bmp280.initialize()) Serial.println("Sensor found");
-    else
-    {
+
+    if (bmp280.initialize()) {
+        Serial.println("Sensor found");
+    }
+    else {
         Serial.println("Sensor missing");
         while (1) {}
     }
-
-    /*// onetime-measure:
-    bmp280.setEnabled(0);
-    bmp280.triggerMeasurement();
-
-    unsigned long startTime = millis();
-
-    float meters;
-    while (millis() - startTime < 5000) {
-        bmp280.awaitMeasurement();        
-        bmp280.getAltitude(meters);
-        bmp280.triggerMeasurement();
-        Serial.println(meters);
-    }
-    float initMeters = meters;
-    Serial.print(initMeters);*/
 }
 
 BMPValues getVals() {
@@ -173,9 +160,8 @@ BMPValues getVals() {
         totalMeters += meters;
         totalMetersCount += 1;
 
-        if(totalMetersCount == 10 && !executedBaseline)
-        {
-            baseline = totalMeters/totalMetersCount;
+        if (totalMetersCount == 10 && !executedBaseline) {
+            baseline = totalMeters / totalMetersCount;
             executedBaseline = true;
 
             Serial.print("Baseline: ");
@@ -190,8 +176,13 @@ BMPValues getVals() {
 
     meters -= baseline;
 
-    delay(100);
+    int switchState = digitalRead(switchPin);
 
-    return {meters, pascal, temperature};
+    bool signal = false;
+
+    if (switchState == LOW) {
+        signal = true;
+    }
+
+    return {meters, pascal, temperature, signal};
 }
-
