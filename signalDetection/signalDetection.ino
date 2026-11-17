@@ -1,11 +1,14 @@
 const int signalPin = 3;
 const int receivePin = A0;
+int previousReading = 0;
+int reading;
 
 unsigned long initTime;
 
 void setup() {
   Serial.begin(115200);
   pinMode(signalPin, OUTPUT);
+  previousReading = analogRead(receivePin);
 }
 
 void loop() {
@@ -29,11 +32,16 @@ void loop() {
 
 void detectSignal() {
 
-  int reading = analogRead(receivePin);
+  reading = analogRead(receivePin);
 
-  if (reading > 120) {
-    Serial.print("SIGNAL DETECTED! ");
+  if (reading > 120 && previousReading < 120) {
+    Serial.print("SIGNAL/PULSE DETECTED! ");
     Serial.println(reading);
     delay(10);
   }
+  else {
+    Serial.println(reading);
+  }
+
+  previousReading = reading;
 }
