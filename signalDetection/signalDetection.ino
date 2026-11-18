@@ -45,3 +45,8 @@ void detectSignal() {
 
   previousReading = reading;
 }
+
+
+//This program sends a signal that last 5 ms every second at 5v but gets dropped to 0.6 volts using
+//voltage dividor with resistors. This drop was meant to simulate the actual low-voltage pulse received
+//from the electronics side.
