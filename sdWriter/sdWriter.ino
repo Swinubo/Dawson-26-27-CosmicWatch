@@ -130,7 +130,7 @@ void loop() {
         dataInterpreted.print(currentTime/1000.0, 2);
         dataInterpreted.print("-");
 
-        dataInterpreted.print(currentTime + timeInterval);
+        dataInterpreted.print((currentTime + timeInterval)/1000.0, 2);
 
         dataInterpreted.print(", Altitude: ");
         dataInterpreted.print((initAltitude + vals.meters) / 2, 2);
@@ -187,9 +187,10 @@ BMPValues getVals() {
 
     bool signal = false;
 
-    if (switchState == LOW) {
+    if (switchState == LOW && !previousSignal) {
         signal = true;
     }
+    previousSignal = signal;
 
     return {meters, pascal, temperature, signal};
 }
